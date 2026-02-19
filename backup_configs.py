@@ -1,54 +1,23 @@
 from netmiko import ConnectHandler
-import csv
-import os
-from datetime import datetime
-import logging
+import time
 
-# Create required directories
-os.makedirs("logs", exist_ok=True)
-os.makedirs("backups", exist_ok=True)
+switch = {
+    "device_type": "cisco_ios",
+    "ip": "10.70.80.15",
+    "username": "admin",
+    "password": "admin"
+}
 
-# Configure logging
-logging.basicConfig(
-    filename="logs/backup.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+backup_dir = "/home/DEVICE-BACKUPS/Switches_Backups"
 
-def create_device_backup_dir(device_name):
-    path = os.path.join("backups", device_name)
-    os.makedirs(path, exist_ok=True)
-    return path
-
-def backup_device(device):
-    try:
-        connection = ConnectHandler(
-            device_type=device["device_type"],
-            host=device["ip"],
-            username=device["username"],
-            password=device["password"]
-        )
-
-        running_config = connection.send_command("show running-config")
-        connection.disconnect()
-
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        device_dir = create_device_backup_dir(device["device_name"])
-        filename = f"{device['device_name']}_{timestamp}.txt"
-
-        with open(os.path.join(device_dir, filename), "w") as file:
-            file.write(running_config)
-
-        logging.info(f"Backup successful for {device['device_name']}")
-
-    except Exception as e:
-        logging.error(f"Backup failed for {device['device_name']} - {str(e)}")
-
-def main():
-    with open("devices.csv") as csvfile:
-        reader = csv.DictReader(csvfile)
-        for device in reader:
-            backup_device(device)
-
-if __name__ == "__main__":
-    main()
+try:
+    with ConnectHandler(**switch) as connection:
+        hostname = connection.send_command("show start | include hostname").strip().split()[-1]
+        output = connection.send_command("show start")
+        current_time = time.strftime("%Y-%m-%d_%H-%M-%S")
+        filename = f"{backup_dir}/{hostname}_{current_time}.txt"
+        with open(filename, "w") as f:
+            f.write(output)
+        print(f"Backup successful! File saved as {filename}")
+except Exception as e:
+    print(f"Backup failed: {str(e)}")
